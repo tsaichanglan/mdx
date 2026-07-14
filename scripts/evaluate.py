@@ -115,12 +115,15 @@ tf.get_logger().setLevel('ERROR')
 gpus = tf.config.list_physical_devices('GPU')
 
 if distribute != "all":
-    try:
-        tf.config.set_visible_devices(gpus[args.gpu], 'GPU')
-        print('Only GPU number', args.gpu, 'used.')
-        tf.config.experimental.set_memory_growth(gpus[args.gpu], True)
-    except RuntimeError as e:
-        print(f"error\n:{e}")
+    if not gpus:
+        print('No GPU found; running on CPU.')
+    else:
+        try:
+            tf.config.set_visible_devices(gpus[args.gpu], 'GPU')
+            print('Only GPU number', args.gpu, 'used.')
+            tf.config.experimental.set_memory_growth(gpus[args.gpu], True)
+        except (RuntimeError, IndexError) as e:
+            print(f"error\n:{e}")
 
 
 import sys
@@ -533,13 +536,14 @@ for num_tx_eval in num_tx_evals:
             print("\nRunning: " + sys_parameters.system)
             # build the model then load ARA weights if available
             e2e_baseline(1, 1.)
-            ara_weights = f'../weights/{sys_parameters.label}_ara_weights.h5'
+            ara_weights = f'../weights/{sys_parameters.label}_ara_weights'
             if exists(ara_weights):
-                load_weights(e2e_baseline, ara_weights)
+                # load onto the ARA sub-network (order-based get/set_weights)
+                load_weights(e2e_baseline._receiver._est._ara, ara_weights)
                 print(f"ARA weights loaded from:\n{ara_weights}")
             else:
                 print("No ARA weights found; using identity-init estimator "
-                      "(equivalent to LS+linear).")
+                      "(equivalent to LS+linear). Run train_ara.py first.")
 
             ber, bler, bit_errors, block_errors, nb_bits, nb_blocks = sim_ber(
                             e2e_baseline,

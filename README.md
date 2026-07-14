@@ -38,6 +38,38 @@ cd mdx/scripts
 ../eval_4x2_tdla/run_mdx_ext.sh
 ```
 
+## Deep-Learned ARA Channel Estimator
+An Attentive Residual Autoencoder (ARA) channel estimator (Wei *et al.*,
+*Electronics Letters*, 2026) is available as a drop-in replacement for the
+classical channel estimator inside the `BaselineReceiver`. It implements the
+paper's three-stage scheme — LS despreading, linear interpolation, and ARA
+denoising over the frequency-space plane — and is selected with the
+`baseline_ara_lmmse` (or `baseline_ara_kbest`) system. Verification also adds
+the 3GPP `CDL-A`…`CDL-E` channel models.
+
+The ARA network is trained, then evaluated:
+
+```bash
+cd mdx/scripts
+# 1) Train the ARA estimator (supervised denoising towards the true channel).
+#    Saves weights to ../weights/<label>_ara_weights.
+TF_USE_LEGACY_KERAS=1 python3 train_ara.py -config_name ara_cdl.cfg \
+    -channel_type CDL-C -num_steps 3000 -batch_size 32
+
+# 2) Evaluate BLER/BER on a CDL channel; evaluate.py auto-loads the ARA weights.
+TF_USE_LEGACY_KERAS=1 python3 evaluate.py -config_name ara_cdl.cfg \
+    -methods baseline_ara_lmmse -channel_type_eval CDL-C \
+    -num_tx_eval 1 -n_size_bwp_eval 4 -mcs_arr_eval_idx 0
+```
+
+A self-contained sanity check (end-to-end run, identity-at-init, short training,
+ARA vs LS+linear BER on CDL) is provided by `scripts/verify_ara_cdl.py`.
+If no ARA weights are present, the estimator is identity-initialised and behaves
+exactly like the LS+linear baseline, so evaluation never degrades below it.
+
+> Setup note: on Python 3.12 / aarch64 use TensorFlow 2.16.2 + `tf-keras`
+> (`TF_USE_LEGACY_KERAS=1`) with Sionna 0.19.2.
+
 ## System model
 The communication system includes a 5G NR PUSCH receiver:
 <p align="center"><img src="imgs/phy1.png" height=200></p>

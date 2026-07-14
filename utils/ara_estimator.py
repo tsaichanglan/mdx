@@ -270,6 +270,25 @@ class ARANetwork(Model):
 
 
 # ---------------------------------------------------------------------------
+# Frequency-space layout helper (shared by estimator and training)
+# ---------------------------------------------------------------------------
+
+def channel_to_freqspace(h):
+    """Map a Sionna channel tensor to the ARA frequency-space input.
+
+    ``h`` : [B, num_rx, num_rx_ant, num_tx, num_streams(or num_tx_ant),
+             num_ofdm_symbols, num_subcarriers], complex
+    returns [N, num_rx_ant(space), num_subcarriers(freq), 2], float32 with
+    real/imag stacked in the last axis (N = product of the other dimensions).
+    """
+    A = tf.shape(h)[2]
+    F = tf.shape(h)[6]
+    hp = tf.transpose(h, perm=[0, 1, 3, 4, 5, 2, 6])   # B,R,T,S,O,A,F
+    hp = tf.reshape(hp, [-1, A, F])
+    return tf.stack([tf.math.real(hp), tf.math.imag(hp)], axis=-1)
+
+
+# ---------------------------------------------------------------------------
 # Sionna-compatible channel estimator
 # ---------------------------------------------------------------------------
 
@@ -313,12 +332,8 @@ class ARAChannelEstimator(PUSCHLSChannelEstimator):
         shp = tf.shape(h_hat)
         B, R, A, T, S, O, F = [shp[i] for i in range(7)]
 
-        # bring (A, F) to the last two axes: [B, R, T, S, O, A, F]
-        hp = tf.transpose(h_hat, perm=[0, 1, 3, 4, 5, 2, 6])
-        # merge everything except the frequency-space plane into the batch
-        hp = tf.reshape(hp, [-1, A, F])
-        # complex -> (real, imag) channels
-        x = tf.stack([tf.math.real(hp), tf.math.imag(hp)], axis=-1)  # [N,A,F,2]
+        # complex frequency-space input [N, A, F, 2]
+        x = channel_to_freqspace(h_hat)
 
         y = self._ara(x, training=training)                          # [N,A,F,2]
 
