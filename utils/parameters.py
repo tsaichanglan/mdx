@@ -23,7 +23,7 @@ import configparser
 import tensorflow as tf
 from os.path import exists
 from sionna.nr import PUSCHConfig, PUSCHDMRSConfig, TBConfig, CarrierConfig, PUSCHTransmitter, PUSCHPilotPattern
-from sionna.channel.tr38901 import PanelArray, UMi, TDL, UMa
+from sionna.channel.tr38901 import PanelArray, UMi, TDL, UMa, CDL
 from sionna.mimo import StreamManagement
 from sionna.channel import OFDMChannel, AWGN
 from .channel_models import DoubleTDLChannel, DatasetChannel, NTDLChannel
@@ -489,6 +489,50 @@ class Parameters:
                                        add_awgn=True,
                                        normalize_channel=self.channel_norm,
                                        return_channel=True)
+        # 3GPP CDL models (CDL-A ... CDL-E) from TR 38.901.
+        # Used to verify the receiver under a spatially-consistent clustered
+        # channel (matching the evaluation channel of the ARA paper).
+        elif self.channel_type in ("CDL-A", "CDL-B", "CDL-C", "CDL-D", "CDL-E"):
+            cdl_model = self.channel_type.split("-")[1]  # "A".."E"
+            delay_spread = getattr(self, "cdl_delay_spread", 300e-9)
+
+            if self.num_rx_antennas == 1:
+                num_cols_per_panel = 1
+                polarization = "single"
+                polarization_type = "V"
+            else:
+                num_cols_per_panel = self.num_rx_antennas // 2
+                polarization = "dual"
+                polarization_type = "cross"
+
+            bs_array = PanelArray(num_rows_per_panel=1,
+                                  num_cols_per_panel=num_cols_per_panel,
+                                  polarization=polarization,
+                                  polarization_type=polarization_type,
+                                  antenna_pattern="38.901",
+                                  carrier_frequency=self.carrier_frequency)
+            ut_array = PanelArray(num_rows_per_panel=1,
+                                  num_cols_per_panel=self._pc.num_antenna_ports,
+                                  polarization="single",
+                                  polarization_type="V",
+                                  antenna_pattern="omni",
+                                  carrier_frequency=self.carrier_frequency)
+
+            self.channel_model = CDL(
+                                model=cdl_model,
+                                delay_spread=delay_spread,
+                                carrier_frequency=self.carrier_frequency,
+                                ut_array=ut_array,
+                                bs_array=bs_array,
+                                direction="uplink",
+                                min_speed=self.min_ut_velocity,
+                                max_speed=self.max_ut_velocity)
+            self.channel = OFDMChannel(
+                    channel_model=self.channel_model,
+                    resource_grid=self.transmitters[0]._resource_grid,
+                    add_awgn=True,
+                    normalize_channel=self.channel_norm,
+                    return_channel=True)
         # DoubleTDL for evaluation
         elif self.channel_type == "DoubleTDLlow":
             self.channel = DoubleTDLChannel(self.carrier_frequency,

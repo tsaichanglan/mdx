@@ -202,6 +202,18 @@ class E2E_Model(Model):
                                 self._sys_parameters,
                                 return_tb_status=return_tb_status,
                                 mcs_arr_eval_idx=mcs_arr_eval_idx)
+        elif self._sys_parameters.system == 'baseline_ara_lmmse':
+            self._sys_name = f"Baseline - ARA+LMMSE"
+            self._receiver = BaselineReceiver(
+                                self._sys_parameters,
+                                return_tb_status=return_tb_status,
+                                mcs_arr_eval_idx=mcs_arr_eval_idx)
+        elif self._sys_parameters.system == 'baseline_ara_kbest':
+            self._sys_name = f"Baseline - ARA+K-Best"
+            self._receiver = BaselineReceiver(
+                                self._sys_parameters,
+                                return_tb_status=return_tb_status,
+                                mcs_arr_eval_idx=mcs_arr_eval_idx)
         elif self._sys_parameters.system == "nrx":
             self._sys_name = "Neural Receiver"
             self._receiver = NeuralPUSCHReceiver(
@@ -470,7 +482,9 @@ class E2E_Model(Model):
                                            'baseline_lmmse_lmmse',
                                            'baseline_lsnn_lmmse',
                                            'baseline_lslin_lmmse',
-                                           'baseline_lslin_kbest'):
+                                           'baseline_lslin_kbest',
+                                           'baseline_ara_lmmse',
+                                           'baseline_ara_kbest'):
             b_hat = self._receiver([y, no])
             if self._return_tb_status:
                 b_hat, tb_crc_status = b_hat

@@ -19,6 +19,8 @@ from sionna.ofdm import LMMSEInterpolator, KBestDetector, LinearDetector, LSChan
 from sionna.nr import PUSCHReceiver, TBDecoder, PUSCHTransmitter, PUSCHLSChannelEstimator
 from sionna.utils import flatten_last_dims, split_dim, flatten_dims
 
+from .ara_estimator import ARAChannelEstimator
+
 
 class BaselineReceiver(Layer):
     """BaselineReceiver class implementing a Sionna baseline receiver for
@@ -208,6 +210,19 @@ class BaselineReceiver(Layer):
             #self._est = LSChannelEstimator(
             #            resource_grid=sys_parameters.transmitters[mcs_arr_eval_idx]._resource_grid,
             #            interpolation_type="lin")
+        elif sys_parameters.system in ('baseline_ara_lmmse',
+                                       'baseline_ara_kbest'):
+            # Deep-learned ARA channel estimator (LS despreading + linear
+            # interpolation + Attentive Residual Autoencoder denoising).
+            pc = sys_parameters.pusch_configs[mcs_arr_eval_idx][0]
+            self._est = ARAChannelEstimator(
+                resource_grid=sys_parameters.transmitters[mcs_arr_eval_idx]._resource_grid,
+                dmrs_length=pc.dmrs.length,
+                dmrs_additional_position=pc.dmrs.additional_position,
+                num_cdm_groups_without_data=pc.dmrs.num_cdm_groups_without_data,
+                base_channels=getattr(sys_parameters, "ara_base_channels", 16),
+                dropout_rate=getattr(sys_parameters, "ara_dropout_rate", 0.0),
+                use_attention=getattr(sys_parameters, "ara_use_attention", True))
         elif sys_parameters.system in ('baseline_perf_csi_lmmse',
                                        'baseline_perf_csi_kbest'):
             self._est = "perfect"
@@ -217,7 +232,8 @@ class BaselineReceiver(Layer):
         ###################################
         if sys_parameters.system in ('baseline_lmmse_kbest',
                                      'baseline_perf_csi_kbest',
-                                     'baseline_lslin_kbest'):
+                                     'baseline_lslin_kbest',
+                                     'baseline_ara_kbest'):
             # Init K-best detector
             self._detector = KBestDetector(
                 "bit",
@@ -232,6 +248,7 @@ class BaselineReceiver(Layer):
         elif sys_parameters.system in ('baseline_lmmse_lmmse',
                                        'baseline_lsnn_lmmse',
                                        'baseline_lslin_lmmse',
+                                       'baseline_ara_lmmse',
                                        'baseline_perf_csi_lmmse'):
             # Init LMMSE detector
             self._detector = LinearDetector(

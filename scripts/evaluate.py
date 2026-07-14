@@ -516,6 +516,56 @@ for num_tx_eval in num_tx_evals:
             print("skipping LSlin & LMMSE")
 
         # --------------------------------------------------------------------
+        # Deep-learned ARA estimation (LS+lin+ARA) + LMMSE detection
+        #
+        if "baseline_ara_lmmse" in methods:
+            sn.config.xla_compat = False
+            sys_parameters = Parameters(config_name,
+                                        training=False,
+                                        num_tx_eval=num_tx_eval,
+                                        system='baseline_ara_lmmse')
+
+            sys_parameters = set_eval_params(sys_parameters,args)
+
+            e2e_baseline = E2E_Model(sys_parameters, training=False,
+                                     mcs_arr_eval_idx=mcs_arr_eval_idx)
+
+            print("\nRunning: " + sys_parameters.system)
+            # build the model then load ARA weights if available
+            e2e_baseline(1, 1.)
+            ara_weights = f'../weights/{sys_parameters.label}_ara_weights.h5'
+            if exists(ara_weights):
+                load_weights(e2e_baseline, ara_weights)
+                print(f"ARA weights loaded from:\n{ara_weights}")
+            else:
+                print("No ARA weights found; using identity-init estimator "
+                      "(equivalent to LS+linear).")
+
+            ber, bler, bit_errors, block_errors, nb_bits, nb_blocks = sim_ber(
+                            e2e_baseline,
+                            graph_mode="graph",
+                            ebno_dbs=ebno_db,
+                            max_mc_iter=max_mc_iter,
+                            num_target_block_errors=num_target_block_errors,
+                            target_bler=target_bler,
+                            batch_size=batch_size,
+                            distribute=distribute,
+                            early_stop=True,
+                            forward_keyboard_interrupt=True)
+            BERs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = ber
+            BLERs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = bler
+            BIT_ERRORs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = bit_errors
+            BLOCK_ERRORs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = block_errors
+            NB_BITs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = nb_bits
+            NB_BLOCKs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = nb_blocks
+            SNRs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = ebno_db
+            data = [ebno_db_, BERs, BLERs, BIT_ERRORs, BLOCK_ERRORs, NB_BITs, NB_BLOCKs, SNRs]
+            save_results(results_filename, data)
+            sn.config.xla_compat = False
+        else:
+            print("skipping ARA & LMMSE")
+
+        # --------------------------------------------------------------------
         # Baseline: LS estimation/lin interpolation + K-Best detection
         #
         if "baseline_lslin_kbest" in methods:
