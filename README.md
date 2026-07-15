@@ -39,36 +39,62 @@ cd mdx/scripts
 ```
 
 ## Deep-Learned ARA Channel Estimator
-An Attentive Residual Autoencoder (ARA) channel estimator (Wei *et al.*,
-*Electronics Letters*, 2026) is available as a drop-in replacement for the
-classical channel estimator inside the `BaselineReceiver`. It implements the
-paper's three-stage scheme — LS despreading, linear interpolation, and ARA
-denoising over the frequency-space plane — and is selected with the
-`baseline_ara_lmmse` (or `baseline_ara_kbest`) system. Verification also adds
-the 3GPP `CDL-A`…`CDL-E` channel models.
+This repository adds an **Attentive Residual Autoencoder (ARA)** channel
+estimator (Wei *et al.*, "Deep-Learned Channel Estimation for MIMO-OFDM System
+by Exploiting Frequency-Space Correlation", *Electronics Letters*, 2026) as a
+drop-in replacement for the classical channel estimator inside the
+`BaselineReceiver`. It reproduces the paper's three-stage scheme:
 
-The ARA network is trained, then evaluated:
+1. **LS despreading** of the DMRS pilots,
+2. **linear interpolation** of the despread estimates over the full grid,
+3. **ARA denoising** over the frequency–space plane
+   `(num_rx_ant = space, num_subcarriers = frequency)`.
+
+Stages 1–2 are inherited from Sionna's `PUSCHLSChannelEstimator`; stage 3 is the
+ARA network — an autoencoder with residual blocks, FIR-smoothed down/up-sampling
+(Res-down / Res-up), 2D self-attention in the encoder and cross-attention in the
+decoder, skip connections, and multi-scale fusion (≈305 k parameters). The final
+read-out conv is **zero-initialised**, so an untrained ARA reproduces the
+LS+linear estimate exactly (identity refinement) and evaluation never degrades
+below the LS+linear baseline before training.
+
+**Files:** `utils/ara_estimator.py` (network + `ARAChannelEstimator`),
+integration in `utils/baseline_rx.py` and `utils/e2e_model.py`
+(`baseline_ara_lmmse` / `baseline_ara_kbest` systems), the 3GPP `CDL-A`…`CDL-E`
+channel models in `utils/parameters.py`, config `config/ara_cdl.cfg`, trainer
+`scripts/train_ara.py`, and sanity check `scripts/verify_ara_cdl.py`.
+
+### Train, then evaluate
+The ARA network is trained by supervised denoising towards the true channel, and
+then evaluated with the standard `evaluate.py` flow, which auto-loads the trained
+weights:
 
 ```bash
 cd mdx/scripts
-# 1) Train the ARA estimator (supervised denoising towards the true channel).
-#    Saves weights to ../weights/<label>_ara_weights.
-TF_USE_LEGACY_KERAS=1 python3 train_ara.py -config_name ara_cdl.cfg \
-    -channel_type CDL-C -num_steps 3000 -batch_size 32
 
-# 2) Evaluate BLER/BER on a CDL channel; evaluate.py auto-loads the ARA weights.
-TF_USE_LEGACY_KERAS=1 python3 evaluate.py -config_name ara_cdl.cfg \
-    -methods baseline_ara_lmmse -channel_type_eval CDL-C \
-    -num_tx_eval 1 -n_size_bwp_eval 4 -mcs_arr_eval_idx 0
+# 1) Train the ARA estimator on a CDL channel.
+#    Saves weights to ../weights/<label>_ara_weights.
+python3 train_ara.py -config_name ara_cdl.cfg -channel_type CDL-C \
+    -num_steps 3000 -batch_size 32
+
+# 2) Evaluate BLER/BER on CDL; evaluate.py auto-loads ../weights/ara_cdl_ara_weights.
+python3 evaluate.py -config_name ara_cdl.cfg -methods baseline_ara_lmmse \
+    -channel_type_eval CDL-C -num_tx_eval 1 -n_size_bwp_eval 4 -mcs_arr_eval_idx 0
+
+# One-shot sanity check (end-to-end run, identity-at-init, short training,
+# ARA vs LS+linear BER on CDL):
+python3 verify_ara_cdl.py
 ```
 
-A self-contained sanity check (end-to-end run, identity-at-init, short training,
-ARA vs LS+linear BER on CDL) is provided by `scripts/verify_ara_cdl.py`.
-If no ARA weights are present, the estimator is identity-initialised and behaves
-exactly like the LS+linear baseline, so evaluation never degrades below it.
+If no ARA weights are found, `evaluate.py` falls back to the identity-initialised
+estimator (equivalent to LS+linear), so it always runs.
 
-> Setup note: on Python 3.12 / aarch64 use TensorFlow 2.16.2 + `tf-keras`
-> (`TF_USE_LEGACY_KERAS=1`) with Sionna 0.19.2.
+### Environment
+The ARA code runs on the README-recommended stack **Sionna 0.18 / TensorFlow
+2.15 / Python 3.11** with no extra flags. If you are constrained to
+**Python 3.12 / aarch64** (where TF 2.15 has no wheel), use TensorFlow 2.16.2 +
+`tf-keras` with `TF_USE_LEGACY_KERAS=1` and Sionna 0.19.2, prefixing the commands
+above with `TF_USE_LEGACY_KERAS=1`. On aarch64 TensorFlow is CPU-only.
 
 ## System model
 The communication system includes a 5G NR PUSCH receiver:

@@ -100,6 +100,15 @@ training_seed = random_seed
 if args.debug:
     tf.config.run_functions_eagerly(True)
     training_logdir = training_logdir + "/debug"
+    # mdx/nrx use grouped Conv3D, which TensorFlow does not implement for eager
+    # execution on CPU. With -debug (run_functions_eagerly) these models fail
+    # on CPU with a cryptic "channels in filter (1) must match ..." error.
+    # Train WITHOUT -debug (default graph/XLA mode) on CPU.
+    if not tf.config.list_physical_devices("GPU") and \
+            args.system in ("mdx", "nrx"):
+        print("\n[WARNING] -debug enables eager execution, but grouped Conv3D "
+              f"(used by {args.system}) is unsupported in eager mode on CPU and "
+              "will fail. Re-run WITHOUT -debug to train on CPU.\n")
 
 #################################################################
 # Start training

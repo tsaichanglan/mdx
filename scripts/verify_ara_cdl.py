@@ -17,7 +17,13 @@ Run from the ``scripts`` directory:
     TF_USE_LEGACY_KERAS=1 python verify_ara_cdl.py
 """
 import os
-os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+import importlib.util
+# Route tf.keras to legacy Keras 2 only when tf-keras is installed (the
+# Python 3.12 / TF 2.16 / Sionna 0.19 setup). On the README stack
+# (Python 3.11 / TF 2.15 / Sionna 0.18) tensorflow.keras is already Keras 2 and
+# setting this var would break the import ("No module named 'tensorflow.keras'").
+if importlib.util.find_spec("tf_keras") is not None:
+    os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 import sys
 sys.path.append("../")

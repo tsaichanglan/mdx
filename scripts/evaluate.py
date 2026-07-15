@@ -140,6 +140,18 @@ from utils import transfer_weights_from_h5
 
 if args.debug:
     tf.config.run_functions_eagerly(True)
+    # The MDX and NRX receivers use grouped convolutions (Conv3D with
+    # groups>1). TensorFlow's grouped-conv op is NOT implemented for eager
+    # execution on CPU, so run_functions_eagerly (i.e. -debug) makes those
+    # models fail with a cryptic
+    #   "Number of channels in filter (1) must match last dimension of input"
+    # error. Warn early so this is not mistaken for a model bug. Run WITHOUT
+    # -debug (default graph/XLA mode) to evaluate mdx/nrx on CPU.
+    if not tf.config.list_physical_devices("GPU") and \
+            any(m in ("mdx", "nrx") for m in methods):
+        print("\n[WARNING] -debug enables eager execution, but grouped Conv3D "
+              "(used by mdx/nrx) is unsupported in eager mode on CPU and will "
+              "fail. Re-run WITHOUT -debug to evaluate mdx/nrx on CPU.\n")
 
 from sim_ber import sim_ber
 
