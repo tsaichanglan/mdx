@@ -293,6 +293,91 @@ class GenerateOFDMChannel_:
 
 
 
+class MultiUserCDLChannel(tf.keras.layers.Layer):
+    """Multi-user 3GPP CDL channel.
+
+    Sionna's ``CDL`` models a single link (one BS, one UT), so it cannot serve
+    several users on its own. This layer instantiates one ``CDL`` per user and
+    concatenates the resulting frequency responses along the ``num_tx``
+    dimension, mirroring :class:`NTDLChannel` / :class:`DoubleTDLChannel`.
+
+    Users are decorrelated by (optionally) assigning different CDL profiles and
+    by CDL's own random per-batch phase/orientation realisations.
+
+    Parameters
+    ----------
+    carrier_frequency : float
+    resource_grid : ResourceGrid
+    ut_array, bs_array : PanelArray
+    max_num_tx : int
+        Number of users (DMRS ports) to generate.
+    cdl_models : list of str
+        CDL profiles ("A".."E") cycled over the users.
+    delay_spread : float
+        RMS delay spread in seconds.
+    min_speed, max_speed : float
+    norm_channel : bool
+
+    Input
+    -----
+    (x, no)
+
+    Output
+    ------
+    y : [batch, num_rx, num_rx_ant, num_ofdm_symbols, fft_size]
+    h : [batch, num_rx, num_rx_ant, num_tx, num_tx_ant, num_ofdm_symbols, fft_size]
+    """
+
+    def __init__(self,
+                 carrier_frequency,
+                 resource_grid,
+                 ut_array,
+                 bs_array,
+                 max_num_tx=4,
+                 cdl_models=["C"],
+                 delay_spread=300e-9,
+                 min_speed=0.,
+                 max_speed=3.,
+                 norm_channel=False):
+        super().__init__()
+
+        print(f"Loading multi-user CDL {cdl_models} for {max_num_tx} users.\n")
+
+        self._max_num_tx = max_num_tx
+        self._apply_channel = ApplyOFDMChannel()
+
+        # cycle the provided profiles over the users
+        models = [cdl_models[i % len(cdl_models)] for i in range(max_num_tx)]
+
+        self._gens = []
+        for model in models:
+            cdl = CDL(model=model,
+                      delay_spread=delay_spread,
+                      carrier_frequency=carrier_frequency,
+                      ut_array=ut_array,
+                      bs_array=bs_array,
+                      direction="uplink",
+                      min_speed=min_speed,
+                      max_speed=max_speed)
+            self._gens.append(GenerateOFDMChannel(
+                cdl, resource_grid, normalize_channel=norm_channel))
+
+    def call(self, inputs):
+        x, no = inputs
+        batch_size = tf.shape(x)[0]
+        num_tx = tf.shape(x)[1]
+
+        # one CDL realisation per user: [batch, 1, num_rx_ant, 1, num_tx_ant, T, F]
+        h_list = [gen(batch_size) for gen in self._gens]
+        # concatenate along the num_tx axis
+        h = tf.concat(h_list, axis=3)
+        # keep only the active users (the E2E model masks the rest anyway)
+        h = h[:, :, :, :num_tx]
+
+        y = self._apply_channel([x, h, no])
+        return y, h
+
+
 class DoubleTDLChannel(tf.keras.layers.Layer):
     """
     Channel model that stacks a 3GPP TDL-B100-400 and TDL-C-300-100 channel

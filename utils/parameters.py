@@ -26,7 +26,7 @@ from sionna.nr import PUSCHConfig, PUSCHDMRSConfig, TBConfig, CarrierConfig, PUS
 from sionna.channel.tr38901 import PanelArray, UMi, TDL, UMa, CDL
 from sionna.mimo import StreamManagement
 from sionna.channel import OFDMChannel, AWGN
-from .channel_models import DoubleTDLChannel, DatasetChannel, NTDLChannel
+from .channel_models import DoubleTDLChannel, DatasetChannel, NTDLChannel, MultiUserCDLChannel
 
 
 class Parameters:
@@ -518,21 +518,37 @@ class Parameters:
                                   antenna_pattern="omni",
                                   carrier_frequency=self.carrier_frequency)
 
-            self.channel_model = CDL(
-                                model=cdl_model,
-                                delay_spread=delay_spread,
-                                carrier_frequency=self.carrier_frequency,
-                                ut_array=ut_array,
-                                bs_array=bs_array,
-                                direction="uplink",
-                                min_speed=self.min_ut_velocity,
-                                max_speed=self.max_ut_velocity)
-            self.channel = OFDMChannel(
-                    channel_model=self.channel_model,
-                    resource_grid=self.transmitters[0]._resource_grid,
-                    add_awgn=True,
-                    normalize_channel=self.channel_norm,
-                    return_channel=True)
+            if self.max_num_tx > 1:
+                # Sionna's CDL models a single link only; stack one CDL per
+                # user to support multi-user (MU-MIMO) evaluation.
+                cdl_models = getattr(self, "cdl_models", [cdl_model])
+                self.channel = MultiUserCDLChannel(
+                        carrier_frequency=self.carrier_frequency,
+                        resource_grid=self.transmitters[0]._resource_grid,
+                        ut_array=ut_array,
+                        bs_array=bs_array,
+                        max_num_tx=self.max_num_tx,
+                        cdl_models=cdl_models,
+                        delay_spread=delay_spread,
+                        min_speed=self.min_ut_velocity,
+                        max_speed=self.max_ut_velocity,
+                        norm_channel=self.channel_norm)
+            else:
+                self.channel_model = CDL(
+                                    model=cdl_model,
+                                    delay_spread=delay_spread,
+                                    carrier_frequency=self.carrier_frequency,
+                                    ut_array=ut_array,
+                                    bs_array=bs_array,
+                                    direction="uplink",
+                                    min_speed=self.min_ut_velocity,
+                                    max_speed=self.max_ut_velocity)
+                self.channel = OFDMChannel(
+                        channel_model=self.channel_model,
+                        resource_grid=self.transmitters[0]._resource_grid,
+                        add_awgn=True,
+                        normalize_channel=self.channel_norm,
+                        return_channel=True)
         # DoubleTDL for evaluation
         elif self.channel_type == "DoubleTDLlow":
             self.channel = DoubleTDLChannel(self.carrier_frequency,

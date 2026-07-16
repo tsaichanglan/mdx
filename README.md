@@ -3,7 +3,7 @@
 # A Compute&Memory Efficient Model-Driven Neural 5G Receiver (MDX) for Edge AI-assisted RAN
 This repository implements a low-complexity, model-driven neural network-based receiver (MDX), designed for multi-user multiple-input multiple-output (MU-MIMO) systems and suitable for use at the RAN edge. The proposed solution is compliant with the 5G New Radio (5G NR), and supports different modulation schemes, bandwidths, number of users, and number of base-station antennas with a single trained model without the need for further training.
 
-The underlying algorithm is described in detail in [MDX](https://arxiv.org/pdf/) [1]. Our implementation leverages the [NVIDIA® Sionna™ link-level simulation
+The underlying algorithm is described in detail in [MDX](https://arxiv.org/pdf/2508.12892) [1]. Our implementation leverages the [NVIDIA® Sionna™ link-level simulation
 library](https://nvlabs.github.io/sionna/), [Neural-Rx](https://github.com/NVlabs/neural_rx/) (NRX), and TensorFlow. It is fully compatible with TensorFlow's graph execution mode.
 
 ## Setup
