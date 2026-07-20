@@ -20,6 +20,7 @@ from sionna.nr import PUSCHReceiver, TBDecoder, PUSCHTransmitter, PUSCHLSChannel
 from sionna.utils import flatten_last_dims, split_dim, flatten_dims
 
 from .ara_estimator import ARAChannelEstimator
+from .cnn_estimator import CNNChannelEstimator
 
 
 class BaselineReceiver(Layer):
@@ -223,6 +224,25 @@ class BaselineReceiver(Layer):
                 base_channels=getattr(sys_parameters, "ara_base_channels", 16),
                 dropout_rate=getattr(sys_parameters, "ara_dropout_rate", 0.0),
                 use_attention=getattr(sys_parameters, "ara_use_attention", True))
+        elif sys_parameters.system in ('baseline_cnn_lmmse',
+                                       'baseline_cnn_kbest',
+                                       'baseline_cnn_nofft_lmmse',
+                                       'baseline_cnn_nofft_kbest'):
+            # Deep-learned 1D CNN channel estimator (pyAerial-style). The
+            # "nofft" variants run the CNN directly in the frequency domain
+            # (no delay-domain FFT/IFFT); the others use the delay domain.
+            pc = sys_parameters.pusch_configs[mcs_arr_eval_idx][0]
+            if "nofft" in sys_parameters.system:
+                do_fft = False
+            else:
+                do_fft = getattr(sys_parameters, "cnn_do_fft", True)
+            self._est = CNNChannelEstimator(
+                resource_grid=sys_parameters.transmitters[mcs_arr_eval_idx]._resource_grid,
+                dmrs_length=pc.dmrs.length,
+                dmrs_additional_position=pc.dmrs.additional_position,
+                num_cdm_groups_without_data=pc.dmrs.num_cdm_groups_without_data,
+                num_conv_channels=getattr(sys_parameters, "cnn_num_conv_channels", 32),
+                do_fft=do_fft)
         elif sys_parameters.system in ('baseline_perf_csi_lmmse',
                                        'baseline_perf_csi_kbest'):
             self._est = "perfect"
@@ -233,7 +253,9 @@ class BaselineReceiver(Layer):
         if sys_parameters.system in ('baseline_lmmse_kbest',
                                      'baseline_perf_csi_kbest',
                                      'baseline_lslin_kbest',
-                                     'baseline_ara_kbest'):
+                                     'baseline_ara_kbest',
+                                     'baseline_cnn_kbest',
+                                     'baseline_cnn_nofft_kbest'):
             # Init K-best detector
             self._detector = KBestDetector(
                 "bit",
@@ -249,6 +271,8 @@ class BaselineReceiver(Layer):
                                        'baseline_lsnn_lmmse',
                                        'baseline_lslin_lmmse',
                                        'baseline_ara_lmmse',
+                                       'baseline_cnn_lmmse',
+                                       'baseline_cnn_nofft_lmmse',
                                        'baseline_perf_csi_lmmse'):
             # Init LMMSE detector
             self._detector = LinearDetector(

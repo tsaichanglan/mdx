@@ -582,6 +582,104 @@ for num_tx_eval in num_tx_evals:
             print("skipping ARA & LMMSE")
 
         # --------------------------------------------------------------------
+        # Deep-learned CNN estimation (LS+lin+CNN) + LMMSE detection
+        #
+        if "baseline_cnn_lmmse" in methods:
+            sn.config.xla_compat = False
+            sys_parameters = Parameters(config_name,
+                                        training=False,
+                                        num_tx_eval=num_tx_eval,
+                                        system='baseline_cnn_lmmse')
+
+            sys_parameters = set_eval_params(sys_parameters,args)
+
+            e2e_baseline = E2E_Model(sys_parameters, training=False,
+                                     mcs_arr_eval_idx=mcs_arr_eval_idx)
+
+            print("\nRunning: " + sys_parameters.system)
+            e2e_baseline(1, 1.)
+            cnn_weights = f'../weights/{sys_parameters.label}_cnn_weights'
+            if exists(cnn_weights):
+                load_weights(e2e_baseline._receiver._est._cnn, cnn_weights)
+                print(f"CNN weights loaded from:\n{cnn_weights}")
+            else:
+                print("No CNN weights found; using identity-init estimator "
+                      "(equivalent to LS+linear). Run train_cnn.py first.")
+
+            ber, bler, bit_errors, block_errors, nb_bits, nb_blocks = sim_ber(
+                            e2e_baseline,
+                            graph_mode="graph",
+                            ebno_dbs=ebno_db,
+                            max_mc_iter=max_mc_iter,
+                            num_target_block_errors=num_target_block_errors,
+                            target_bler=target_bler,
+                            batch_size=batch_size,
+                            distribute=distribute,
+                            early_stop=True,
+                            forward_keyboard_interrupt=True)
+            BERs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = ber
+            BLERs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = bler
+            BIT_ERRORs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = bit_errors
+            BLOCK_ERRORs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = block_errors
+            NB_BITs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = nb_bits
+            NB_BLOCKs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = nb_blocks
+            SNRs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = ebno_db
+            data = [ebno_db_, BERs, BLERs, BIT_ERRORs, BLOCK_ERRORs, NB_BITs, NB_BLOCKs, SNRs]
+            save_results(results_filename, data)
+            sn.config.xla_compat = False
+        else:
+            print("skipping CNN & LMMSE")
+
+        # --------------------------------------------------------------------
+        # Deep-learned CNN (no FFT) estimation + LMMSE detection
+        #
+        if "baseline_cnn_nofft_lmmse" in methods:
+            sn.config.xla_compat = False
+            sys_parameters = Parameters(config_name,
+                                        training=False,
+                                        num_tx_eval=num_tx_eval,
+                                        system='baseline_cnn_nofft_lmmse')
+
+            sys_parameters = set_eval_params(sys_parameters,args)
+
+            e2e_baseline = E2E_Model(sys_parameters, training=False,
+                                     mcs_arr_eval_idx=mcs_arr_eval_idx)
+
+            print("\nRunning: " + sys_parameters.system)
+            e2e_baseline(1, 1.)
+            cnn_weights = f'../weights/{sys_parameters.label}_cnn_nofft_weights'
+            if exists(cnn_weights):
+                load_weights(e2e_baseline._receiver._est._cnn, cnn_weights)
+                print(f"CNN(no FFT) weights loaded from:\n{cnn_weights}")
+            else:
+                print("No CNN(no FFT) weights found; using identity-init "
+                      "estimator. Run train_cnn.py -system baseline_cnn_nofft_lmmse.")
+
+            ber, bler, bit_errors, block_errors, nb_bits, nb_blocks = sim_ber(
+                            e2e_baseline,
+                            graph_mode="graph",
+                            ebno_dbs=ebno_db,
+                            max_mc_iter=max_mc_iter,
+                            num_target_block_errors=num_target_block_errors,
+                            target_bler=target_bler,
+                            batch_size=batch_size,
+                            distribute=distribute,
+                            early_stop=True,
+                            forward_keyboard_interrupt=True)
+            BERs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = ber
+            BLERs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = bler
+            BIT_ERRORs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = bit_errors
+            BLOCK_ERRORs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = block_errors
+            NB_BITs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = nb_bits
+            NB_BLOCKs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = nb_blocks
+            SNRs[e2e_baseline._sys_name, num_tx_eval, mcs_arr_eval_idx] = ebno_db
+            data = [ebno_db_, BERs, BLERs, BIT_ERRORs, BLOCK_ERRORs, NB_BITs, NB_BLOCKs, SNRs]
+            save_results(results_filename, data)
+            sn.config.xla_compat = False
+        else:
+            print("skipping CNN(no FFT) & LMMSE")
+
+        # --------------------------------------------------------------------
         # Baseline: LS estimation/lin interpolation + K-Best detection
         #
         if "baseline_lslin_kbest" in methods:

@@ -43,6 +43,48 @@ plane, so the weights trained for this setup are independent of the MCS and of
 the number of users — `weights/ara_cdl_16x4_mu_ara_weights` reuses the trained
 ARA directly.
 
+## LS vs CNN vs ARA comparison (channel-estimation NMSE + BLER)
+
+Compares three channel estimators, all feeding the **same LMMSE equalizer**:
+
+| Estimator | System | Description |
+|---|---|---|
+| **LS** | `baseline_lslin_lmmse` | LS despreading + linear interpolation (classical) |
+| **CNN** | `baseline_cnn_lmmse` | LS+lin refined by a 1D delay-domain residual CNN (TF port of NVIDIA pyAerial `channel_estimation`) |
+| **ARA** | `baseline_ara_lmmse` | LS+lin refined by the attentive residual autoencoder |
+
+Both learned estimators are residual refinements of the same LS+lin input
+(zero-initialised read-out ⇒ identity at init), so the comparison is fair.
+
+Files:
+
+| File | Purpose |
+|---|---|
+| `../scripts/train_cnn.py` | trains the CNN (AdamW + NMSE loss, pyAerial recipe) |
+| `compute_nmse_16x4_cdlc.py` | channel-estimation NMSE vs SNR for LS/CNN/ARA → `nmse_16x4_cdlc_results` |
+| `plot_nmse_16x4_cdlc.py` | plots `nmse_16x4_cdlc.png` |
+| `run_eval_16x4_cdlc_cnn_mu4.sh` | adds CNN BLER curves (4 users, MCS 9/14/19) into `ara_cdl_16x4_mu_results` |
+| `plot_bler_16x4_cdlc_compare.py` | plots `bler_16x4_cdlc_compare.png` (LS/CNN/ARA per MCS) |
+
+```bash
+cd mdx/scripts
+PY=/home/alan/sionna-env-018/bin/python
+
+# 1) Train the CNN (LS/ARA already trained). Same SNR range as ARA.
+$PY train_cnn.py -config_name ara_cdl_16x4.cfg -channel_type CDL-C \
+    -num_steps 1500 -batch_size 16 -snr_db_min -12 -snr_db_max 2
+# reuse the weights for the 4-user (mu) label:
+cp ../weights/ara_cdl_16x4_cnn_weights ../weights/ara_cdl_16x4_mu_cnn_weights
+
+# 2) Channel-estimation NMSE vs SNR (LS/CNN/ARA)
+PYTHON=$PY $PY ../eval_16x4_cdlc/compute_nmse_16x4_cdlc.py
+$PY ../eval_16x4_cdlc/plot_nmse_16x4_cdlc.py
+
+# 3) Add CNN BLER curves (LS + ARA already in the results file)
+PYTHON=$PY ../eval_16x4_cdlc/run_eval_16x4_cdlc_cnn_mu4.sh
+$PY ../eval_16x4_cdlc/plot_bler_16x4_cdlc_compare.py
+```
+
 ## Usage
 
 Run the shell scripts **from the `scripts/` directory** (they call `evaluate.py`

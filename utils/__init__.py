@@ -15,6 +15,7 @@
 
 from .baseline_rx import BaselineReceiver
 from .ara_estimator import ARAChannelEstimator, ARANetwork, channel_to_freqspace
+from .cnn_estimator import CNNChannelEstimator, CNNChannelEstimatorNet, channel_to_subcarrier
 from .e2e_model import E2E_Model
 from .neural_rx import NeuralPUSCHReceiver, NeuralReceiverONNX
 from .parameters import Parameters

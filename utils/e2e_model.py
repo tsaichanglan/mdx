@@ -214,6 +214,30 @@ class E2E_Model(Model):
                                 self._sys_parameters,
                                 return_tb_status=return_tb_status,
                                 mcs_arr_eval_idx=mcs_arr_eval_idx)
+        elif self._sys_parameters.system == 'baseline_cnn_lmmse':
+            self._sys_name = f"Baseline - CNN+LMMSE"
+            self._receiver = BaselineReceiver(
+                                self._sys_parameters,
+                                return_tb_status=return_tb_status,
+                                mcs_arr_eval_idx=mcs_arr_eval_idx)
+        elif self._sys_parameters.system == 'baseline_cnn_kbest':
+            self._sys_name = f"Baseline - CNN+K-Best"
+            self._receiver = BaselineReceiver(
+                                self._sys_parameters,
+                                return_tb_status=return_tb_status,
+                                mcs_arr_eval_idx=mcs_arr_eval_idx)
+        elif self._sys_parameters.system == 'baseline_cnn_nofft_lmmse':
+            self._sys_name = f"Baseline - CNN(no FFT)+LMMSE"
+            self._receiver = BaselineReceiver(
+                                self._sys_parameters,
+                                return_tb_status=return_tb_status,
+                                mcs_arr_eval_idx=mcs_arr_eval_idx)
+        elif self._sys_parameters.system == 'baseline_cnn_nofft_kbest':
+            self._sys_name = f"Baseline - CNN(no FFT)+K-Best"
+            self._receiver = BaselineReceiver(
+                                self._sys_parameters,
+                                return_tb_status=return_tb_status,
+                                mcs_arr_eval_idx=mcs_arr_eval_idx)
         elif self._sys_parameters.system == "nrx":
             self._sys_name = "Neural Receiver"
             self._receiver = NeuralPUSCHReceiver(
@@ -484,7 +508,11 @@ class E2E_Model(Model):
                                            'baseline_lslin_lmmse',
                                            'baseline_lslin_kbest',
                                            'baseline_ara_lmmse',
-                                           'baseline_ara_kbest'):
+                                           'baseline_ara_kbest',
+                                           'baseline_cnn_lmmse',
+                                           'baseline_cnn_kbest',
+                                           'baseline_cnn_nofft_lmmse',
+                                           'baseline_cnn_nofft_kbest'):
             b_hat = self._receiver([y, no])
             if self._return_tb_status:
                 b_hat, tb_crc_status = b_hat
